@@ -19,7 +19,7 @@ on:
 env:
   TURBO_TELEMETRY_DISABLED: 1
   pnpm_config_color: always
-  NODE_OPTIONS: "--max-old-space-size=8192 --max-semi-space-size=64"
+  NODE_ENV: production
 
 jobs:
   build-and-push:
@@ -67,19 +67,12 @@ jobs:
         run: |
           cp apps/frontend/.env.blazenetwork apps/frontend/.env
 
-      - name: Generate missing files
-        run: |
-          # Generate language-settings-coverage if it doesn't exist
-          mkdir -p packages/ui/src/layouts/wrapped/settings/language-settings
-          if [ ! -f packages/ui/src/layouts/wrapped/settings/language-settings/language-settings-coverage.generated.ts ]; then
-            echo "// Auto-generated file" > packages/ui/src/layouts/wrapped/settings/language-settings/language-settings-coverage.generated.ts
-            echo "export const languageCoverage = {};" >> packages/ui/src/layouts/wrapped/settings/language-settings/language-settings-coverage.generated.ts
-          fi
+      - name: Build i18n coverage (generates missing file)
+        run: pnpm run i18n:coverage
 
       - name: Build frontend
-        run: pnpm build --filter=@blazenetwork/frontend
-        env:
-          SKIP_API_FETCH: "true"
+        run: pnpm run build
+        working-directory: apps/frontend
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
