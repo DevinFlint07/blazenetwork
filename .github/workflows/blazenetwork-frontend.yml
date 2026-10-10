@@ -19,6 +19,7 @@ on:
 env:
   TURBO_TELEMETRY_DISABLED: 1
   pnpm_config_color: always
+  NODE_OPTIONS: "--max-old-space-size=8192 --max-semi-space-size=64"
 
 jobs:
   build-and-push:
@@ -31,16 +32,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -69,12 +60,39 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
 
-      - name: Lowercase repository name
-        run: echo "REPO_LC=${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Copy BlazeNetwork environment
         run: |
           cp apps/frontend/.env.blazenetwork apps/frontend/.env
+
+      - name: Generate missing files
+        run: |
+          # Generate language-settings-coverage if it doesn't exist
+          mkdir -p packages/ui/src/layouts/wrapped/settings/language-settings
+          if [ ! -f packages/ui/src/layouts/wrapped/settings/language-settings/language-settings-coverage.generated.ts ]; then
+            echo "// Auto-generated file" > packages/ui/src/layouts/wrapped/settings/language-settings/language-settings-coverage.generated.ts
+            echo "export const languageCoverage = {};" >> packages/ui/src/layouts/wrapped/settings/language-settings/language-settings-coverage.generated.ts
+          fi
+
+      - name: Build frontend
+        run: pnpm build --filter=@blazenetwork/frontend
+        env:
+          SKIP_API_FETCH: "true"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Lowercase repository name
+        run: echo "REPO_LC=${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
