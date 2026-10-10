@@ -63,12 +63,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Generate i18n coverage file
+        run: pnpm i18n:coverage
+
       - name: Copy BlazeNetwork environment
         run: |
           cp apps/frontend/.env.blazenetwork apps/frontend/.env
-
-      - name: Build i18n coverage (generates missing file)
-        run: pnpm run i18n:coverage
 
       - name: Build frontend
         run: pnpm run build
