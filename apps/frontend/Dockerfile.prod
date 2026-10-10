@@ -1,0 +1,51 @@
+# syntax=docker/dockerfile:1
+
+FROM node:24-slim as builder
+
+LABEL org.opencontainers.image.source=https://github.com/modrinth/code
+LABEL org.opencontainers.image.title=frontend
+LABEL org.opencontainers.image.description="Modrinth website"
+LABEL org.opencontainers.image.licenses=AGPL-3.0-only
+
+WORKDIR /app
+
+RUN npm install -g pnpm@12.8.1
+
+# Copy all necessary files
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
+COPY turbo.jsonc ./
+COPY apps ./apps
+COPY packages ./packages
+COPY patches ./patches
+
+# Install dependencies
+RUN pnpm install --frozen-lockfile
+
+# Build only frontend
+WORKDIR /app/apps/frontend
+RUN pnpm build
+
+FROM node:24-slim
+
+LABEL org.opencontainers.image.source=https://github.com/modrinth/code
+LABEL org.opencontainers.image.title=frontend
+LABEL org.opencontainers.image.description="Modrinth website"
+LABEL org.opencontainers.image.licenses=AGPL-3.0-only
+
+WORKDIR /app
+
+RUN npm install -g pnpm@12.8.1
+
+# Install wget for healthcheck
+RUN apt-get update && apt-get install -y wget && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /app/apps/frontend/.output /app/apps/frontend/.output
+COPY --from=builder /app/apps/frontend/package.json /app/apps/frontend/
+COPY --from=builder /app/apps/frontend/node_modules /app/apps/frontend/node_modules
+COPY --from=builder /app/apps/frontend/.env /app/apps/frontend/.env
+
+WORKDIR /app/apps/frontend
+
+EXPOSE 3000
+
+CMD ["node", ".output/server/index.mjs"]

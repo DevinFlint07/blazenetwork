@@ -1,0 +1,179 @@
+name: blazenetwork
+services:
+  # Database services
+  postgres_db:
+    image: postgres:15-alpine
+    container_name: blazenetwork-postgres
+    volumes:
+      - blazenetwork-db-data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: labrinth
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-labrinth}
+      POSTGRES_HOST_AUTH_METHOD: trust
+      PGUSER: labrinth
+    healthcheck:
+      test: ['CMD', 'pg_isready', '-U', 'labrinth']
+      interval: 3s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  elasticsearch0:
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.4.4
+    container_name: blazenetwork-elasticsearch0
+    restart: unless-stopped
+    networks:
+      - elasticsearch-mesh
+    volumes:
+      - blazenetwork-elasticsearch0-data:/usr/share/elasticsearch/data
+    environment:
+      node.name: elasticsearch0
+      cluster.name: blazenetwork-elasticsearch
+      discovery.seed_hosts: elasticsearch0
+      cluster.initial_master_nodes: elasticsearch0
+      bootstrap.memory_lock: 'true'
+      xpack.security.enabled: 'false'
+      xpack.security.enrollment.enabled: 'false'
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    healthcheck:
+      test:
+        ['CMD-SHELL', 'curl --fail http://localhost:9200/_cluster/health?wait_for_status=yellow']
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  meilisearch0:
+    image: getmeili/meilisearch:v1.12.0
+    container_name: blazenetwork-meilisearch0
+    restart: unless-stopped
+    volumes:
+      - blazenetwork-meilisearch-data:/data.ms
+    environment:
+      MEILI_MASTER_KEY: PX3Z_KnMGSXIFBdwA0HPdu0R9vELTOptALxUOBwlOYw
+      MEILI_HTTP_PAYLOAD_SIZE_LIMIT: 107374182400
+      MEILI_LOG_LEVEL: warn
+    healthcheck:
+      test: ['CMD', 'curl', '--fail', 'http://localhost:7700/health']
+      interval: 3s
+      timeout: 5s
+      retries: 3
+
+  redis:
+    image: redis:alpine
+    container_name: blazenetwork-redis
+    restart: unless-stopped
+    volumes:
+      - blazenetwork-redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'PING']
+      interval: 3s
+      timeout: 5s
+      retries: 3
+
+  clickhouse:
+    image: clickhouse/clickhouse-server
+    container_name: blazenetwork-clickhouse
+    volumes:
+      - blazenetwork-clickhouse-data:/var/lib/clickhouse
+    environment:
+      CLICKHOUSE_DB: blazenetwork_ariadne
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-default}
+    healthcheck:
+      test: ['CMD-SHELL', 'clickhouse-client --query "SELECT 1"']
+      interval: 3s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  redpanda:
+    image: redpandadata/redpanda:v26.1.10
+    container_name: blazenetwork-redpanda
+    command:
+      - redpanda
+      - start
+      - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr internal://redpanda:9092,external://localhost:19092
+      - --pandaproxy-addr internal://0.0.0.0:8082,external://0.0.0.0:18082
+      - --schema-registry-addr internal://0.0.0.0:8081,external://0.0.0.0:18081
+      - --rpc-addr redpanda:33145
+      - --advertise-rpc-addr redpanda:33145
+      - --mode dev-container
+      - --smp 1
+      - --default-log-level=info
+    volumes:
+      - blazenetwork-redpanda-data:/var/lib/redpanda/data
+    healthcheck:
+      test: ['CMD', 'rpk', 'cluster', 'info', '-X', 'brokers=localhost:9092']
+      interval: 10s
+      timeout: 15s
+      retries: 10
+    restart: unless-stopped
+
+  # Backend API
+  labrinth:
+    image: blazenetwork-labrinth
+    container_name: blazenetwork-labrinth
+    volumes:
+      - blazenetwork-cdn-data:/tmp/modrinth
+    environment:
+      - MEILISEARCH_ADDR=http://meilisearch0:7700
+      - MEILISEARCH_KEY=PX3Z_KnMGSXIFBdwA0HPdu0R9vELTOptALxUOBwlOYw
+      - SEARCH_BACKEND=elasticsearch
+    env_file:
+      - /root/code/apps/labrinth/.env.blazenetwork
+    restart: unless-stopped
+
+  # Frontend
+  frontend:
+    image: blazenetwork-frontend
+    container_name: blazenetwork-frontend
+    environment:
+      - BASE_URL=https://blazenetwork.fun/api/
+      - BROWSER_BASE_URL=https://blazenetwork.fun/api/
+      - PYRO_BASE_URL=https://blazenetwork.fun/archon
+      - SHARED_INSTANCES_API_BASE_URL=https://blazenetwork.fun/shared-instances
+      - PROD_OVERRIDE=true
+      - DISABLE_ANALYTICS=true
+      - DISABLE_SERVER_PLANS=true
+      - NUXT_PUBLIC_DEV=production
+      - USE_STAGING_API=true
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Nginx reverse proxy
+  nginx:
+    image: nginx:alpine
+    container_name: blazenetwork-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /root/code/nginx.conf:/etc/nginx/nginx.conf:ro
+      - /root/code/ssl:/etc/nginx/ssl:ro
+      - /root/code/fallback.html:/usr/share/nginx/html/fallback.html:ro
+    restart: unless-stopped
+
+networks:
+  default:
+    driver: bridge
+  elasticsearch-mesh:
+    driver: bridge
+
+volumes:
+  blazenetwork-db-data:
+  blazenetwork-elasticsearch0-data:
+  blazenetwork-meilisearch-data:
+  blazenetwork-redis-data:
+  blazenetwork-clickhouse-data:
+  blazenetwork-redpanda-data:
+  blazenetwork-cdn-data:
