@@ -250,13 +250,9 @@ export default defineNuxtConfig({
 		rollupConfig: {
 			// @ts-expect-error because of rolldown-vite - completely fine though
 			plugins: [serverSidedVue()],
-			external: ['cloudflare:workers'],
 		},
-		preset: 'cloudflare_module',
+		preset: 'node-server',
 		noExternals: getNoExternals(),
-		cloudflare: {
-			nodeCompat: true,
-		},
 	},
 	devtools: {
 		enabled: true,
