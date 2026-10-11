@@ -41,7 +41,7 @@ export function createModrinthClient(
 			withStagingArchonBaseUrl(config.archonBaseUrl, flags.value.archonApiStaging),
 		sharedInstancesBaseUrl: () =>
 			flags.value.archonApiStaging
-				? 'https://staging-shared-instances.modrinth.com'
+				? 'https://blazenetwork.fun/shared-instances'
 				: config.sharedInstancesBaseUrl,
 		userAgent: () => (import.meta.server ? getFrontendUserAgent(config.commitHash) : undefined),
 		headers: visitorUserAgent ? { [VISITOR_USER_AGENT_HEADER]: visitorUserAgent } : undefined,
