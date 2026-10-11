@@ -6,8 +6,8 @@ import svgLoader from 'vite-svg-loader'
 
 import { GenericModrinthClient, type Labrinth } from '../../packages/api-client/src/index.ts'
 
-const STAGING_API_URL = 'https://staging-api.modrinth.com/v2/'
-const STAGING_SHARED_INSTANCES_API_URL = 'https://staging-shared-instances.modrinth.com'
+const STAGING_API_URL = 'https://blazenetwork.fun/api/v2/'
+const STAGING_SHARED_INSTANCES_API_URL = 'https://blazenetwork.fun/shared-instances'
 const API_CLIENT_SOURCE = fileURLToPath(
 	new URL('../../packages/api-client/src/index.ts', import.meta.url),
 )
