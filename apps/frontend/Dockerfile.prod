@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM node:24-slim as builder
+FROM node:24-slim AS builder
 
 LABEL org.opencontainers.image.source=https://github.com/modrinth/code
 LABEL org.opencontainers.image.title=frontend
@@ -17,9 +17,16 @@ COPY turbo.jsonc ./
 COPY apps ./apps
 COPY packages ./packages
 COPY patches ./patches
+COPY scripts ./scripts
 
 # Install dependencies
 RUN pnpm install --frozen-lockfile
+
+# Generate i18n coverage file (required before build)
+RUN pnpm i18n:coverage
+
+# Copy environment
+COPY apps/frontend/.env.blazenetwork apps/frontend/.env
 
 # Build only frontend
 WORKDIR /app/apps/frontend
